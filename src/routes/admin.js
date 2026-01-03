@@ -226,6 +226,7 @@ app.post('/codes', async (c) => {
 app.delete('/codes/:code', async (c) => {
   const code = sanitizeCode(c.req.param('code'))
   const ip = getClientIP(c)
+  const skipLog = c.req.query('skipLog') === '1'
   if (!code) {
     return c.json({ success: false, error: 'Invalid code' }, 400)
   }
@@ -243,9 +244,47 @@ app.delete('/codes/:code', async (c) => {
     return c.json({ success: false, error: 'Not Found' }, 404)
   }
 
-  await logOperation(redis, 'code_delete', { ip, code })
+  if (!skipLog) {
+    await logOperation(redis, 'code_delete', { ip, code })
+  }
 
   return c.json({ success: true })
+})
+
+app.delete('/codes', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const ip = getClientIP(c)
+  const codes = Array.isArray(body.codes) ? body.codes.map(sanitizeCode).filter(Boolean) : []
+
+  if (codes.length === 0) {
+    return c.json({ success: false, error: '未指定兑换码' }, 400)
+  }
+
+  let redis
+  try {
+    redis = getRedis()
+  } catch (err) {
+    console.error(err)
+    return c.json({ success: false, error: 'Redis 未配置' }, 500)
+  }
+
+  let okCount = 0
+  let failCount = 0
+  for (const code of codes) {
+    const deleted = await redis.del(`code:${code}`)
+    if (deleted) okCount++
+    else failCount++
+  }
+
+  if (okCount > 0) {
+    await logOperation(redis, 'code_delete', {
+      ip,
+      count: okCount,
+      codes: codes.slice(0, 5).join(',') + (codes.length > 5 ? '...' : ''),
+    })
+  }
+
+  return c.json({ success: true, deleted: okCount, failed: failCount })
 })
 
 app.get('/logs', async (c) => {

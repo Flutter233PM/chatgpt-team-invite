@@ -800,23 +800,21 @@
         btnBulkDelete.textContent = '删除中...'
         show(msgList, '批量删除中...', 'loading')
 
-        let okCount = 0
-        let failCount = 0
         try {
-          for (const code of list) {
-            const { res } = await apiFetch('/api/admin/codes/' + encodeURIComponent(code), { method: 'DELETE' })
-            if (res.ok) {
-              okCount += 1
-              selectedSet.delete(code)
+          const { res, data } = await apiFetch('/api/admin/codes', {
+            method: 'DELETE',
+            body: JSON.stringify({ codes: list }),
+          })
+          if (res.ok && data.success) {
+            for (const code of list) selectedSet.delete(code)
+            await refresh()
+            if (data.failed > 0) {
+              show(msgList, `批量删除完成：成功 ${data.deleted}，失败 ${data.failed}`, 'error')
             } else {
-              failCount += 1
+              show(msgList, `批量删除完成：成功 ${data.deleted}`, 'success')
             }
-          }
-          await refresh()
-          if (failCount > 0) {
-            show(msgList, `批量删除完成：成功 ${okCount}，失败 ${failCount}`, 'error')
           } else {
-            show(msgList, `批量删除完成：成功 ${okCount}`, 'success')
+            show(msgList, data.error || '批量删除失败', 'error')
           }
         } finally {
           btnBulkDelete.textContent = '批量删除'
