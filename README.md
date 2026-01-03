@@ -2,8 +2,6 @@
 
 自动化 ChatGPT Team 邀请系统，支持兑换码验证和管理员界面。
 
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/deploy?repo=Flutter233PM/chatgpt-team-invite)
-
 ## 功能
 
 - 用户提交邮箱地址 + 兑换码
@@ -11,12 +9,14 @@
 - 管理员界面：创建/删除/查看兑换码
 - 基于 Redis 存储，高性能
 
-## 一键部署
+## 部署到 Zeabur
 
-点击上方按钮一键部署到 Zeabur，部署时需要：
-
-1. 添加 Redis 服务（Zeabur Marketplace 中选择）
-2. 配置以下环境变量
+1. 登录 [Zeabur](https://zeabur.com)
+2. 创建新项目，点击 **Add Service** → **Deploy Your Source Code**
+3. 选择此 GitHub 仓库
+4. 添加 **Redis** 服务（Marketplace → Redis）
+5. 配置环境变量（见下方）
+6. 部署完成
 
 ## 环境变量
 
