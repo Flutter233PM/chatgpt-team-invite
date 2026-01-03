@@ -466,6 +466,10 @@
         passwordInput.value = ''
         setLoggedInState()
         show(msgAuth, '已清除密码', 'success')
+        clear(msgCreate)
+        clear(msgList)
+        renderRows([])
+        countHint.textContent = ''
       })
 
       btnRefresh.addEventListener('click', refresh)
