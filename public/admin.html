@@ -180,11 +180,39 @@
         align-items: center;
         justify-content: space-between;
         gap: 10px;
+        flex-wrap: wrap;
         margin-bottom: 10px;
       }
       .topbar .hint {
         font-size: 12px;
         color: #666;
+      }
+      .topbar-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .bulk-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .select-col {
+        width: 44px;
+      }
+      th.select-col,
+      td.select-col {
+        padding-left: 6px;
+        padding-right: 6px;
+        vertical-align: middle;
+        text-align: center;
       }
     </style>
   </head>
@@ -245,11 +273,26 @@
             <div style="font-weight: 800">兑换码列表</div>
             <div id="countHint" class="hint"></div>
           </div>
+          <div class="topbar-actions">
+            <div class="tabs" role="tablist" aria-label="兑换码状态">
+              <button class="btn-primary" id="tabUnused" type="button" role="tab" aria-selected="true">
+                未使用
+              </button>
+              <button class="btn-ghost" id="tabUsed" type="button" role="tab" aria-selected="false">已使用</button>
+            </div>
+            <div class="bulk-actions">
+              <button class="btn-muted" id="btnBulkCopy" type="button" disabled>批量复制</button>
+              <button class="btn-muted" id="btnBulkDelete" type="button" disabled>批量删除</button>
+            </div>
+          </div>
         </div>
         <div style="overflow: auto">
           <table>
             <thead>
               <tr>
+                <th class="select-col">
+                  <input id="chkAll" type="checkbox" aria-label="全选" />
+                </th>
                 <th>兑换码</th>
                 <th>状态</th>
                 <th>创建时间</th>
@@ -282,7 +325,24 @@
       const tbody = document.getElementById('tbody')
       const countHint = document.getElementById('countHint')
 
+      const tabUnused = document.getElementById('tabUnused')
+      const tabUsed = document.getElementById('tabUsed')
+      const chkAll = document.getElementById('chkAll')
+      const btnBulkCopy = document.getElementById('btnBulkCopy')
+      const btnBulkDelete = document.getElementById('btnBulkDelete')
+
       const STORAGE_KEY = 'adminPassword'
+
+      let activeTab = 'unused'
+      let allCodes = []
+      const selectedCodesByTab = {
+        unused: new Set(),
+        used: new Set(),
+      }
+
+      function getSelectedSet() {
+        return selectedCodesByTab[activeTab]
+      }
 
       function show(el, text, type) {
         el.textContent = text
@@ -339,10 +399,83 @@
         return { res, data }
       }
 
+      function updateTabUI() {
+        if (activeTab === 'unused') {
+          tabUnused.className = 'btn-primary'
+          tabUnused.setAttribute('aria-selected', 'true')
+          tabUsed.className = 'btn-ghost'
+          tabUsed.setAttribute('aria-selected', 'false')
+        } else {
+          tabUsed.className = 'btn-primary'
+          tabUsed.setAttribute('aria-selected', 'true')
+          tabUnused.className = 'btn-ghost'
+          tabUnused.setAttribute('aria-selected', 'false')
+        }
+      }
+
+      function getFilteredCodes() {
+        const isUsed = activeTab === 'used'
+        return allCodes.filter((c) => Boolean(c.used) === isUsed)
+      }
+
+      function updateCountHint() {
+        const used = allCodes.filter((c) => c.used).length
+        const unused = allCodes.length - used
+        countHint.textContent = `未使用 ${unused} 个 / 已使用 ${used} 个`
+      }
+
+      function setButtonEnabled(btn, enabledClass, enabled) {
+        btn.disabled = !enabled
+        btn.className = enabled ? enabledClass : 'btn-muted'
+      }
+
+      function updateBulkButtons() {
+        const hasSelected = getSelectedSet().size > 0
+        setButtonEnabled(btnBulkCopy, 'btn-ghost', hasSelected)
+        setButtonEnabled(btnBulkDelete, 'btn-danger', hasSelected)
+      }
+
+      function syncSelectAllState() {
+        const visible = getFilteredCodes()
+        if (visible.length === 0) {
+          chkAll.checked = false
+          chkAll.indeterminate = false
+          chkAll.disabled = true
+          return
+        }
+
+        chkAll.disabled = false
+        const selectedSet = getSelectedSet()
+        const selectedVisible = visible.reduce((acc, item) => acc + (selectedSet.has(item.code) ? 1 : 0), 0)
+        chkAll.checked = selectedVisible === visible.length
+        chkAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length
+      }
+
+      function renderActiveTab() {
+        updateTabUI()
+        renderRows(getFilteredCodes())
+        updateBulkButtons()
+        syncSelectAllState()
+      }
+
       function renderRows(codes) {
         tbody.innerHTML = ''
+        const selectedSet = getSelectedSet()
         for (const item of codes) {
           const tr = document.createElement('tr')
+
+          const tdSelect = document.createElement('td')
+          tdSelect.className = 'select-col'
+          const chk = document.createElement('input')
+          chk.type = 'checkbox'
+          chk.checked = selectedSet.has(item.code)
+          chk.addEventListener('change', () => {
+            if (chk.checked) selectedSet.add(item.code)
+            else selectedSet.delete(item.code)
+            updateBulkButtons()
+            syncSelectAllState()
+          })
+          tdSelect.appendChild(chk)
 
           const tdCode = document.createElement('td')
           tdCode.className = 'code'
@@ -395,6 +528,7 @@
                 method: 'DELETE',
               })
               if (res.ok) {
+                selectedSet.delete(item.code)
                 await refresh()
                 show(msgList, '已删除：' + item.code, 'success')
               } else {
@@ -411,6 +545,7 @@
           actionWrap.appendChild(btnDel)
           tdActions.appendChild(actionWrap)
 
+          tr.appendChild(tdSelect)
           tr.appendChild(tdCode)
           tr.appendChild(tdStatus)
           tr.appendChild(tdCreated)
@@ -435,15 +570,29 @@
         const { res, data } = await apiFetch('/api/admin/codes', { method: 'GET' })
         if (res.ok && data.success) {
           const codes = data.codes || []
-          renderRows(codes)
-          countHint.textContent = `共 ${codes.length} 个`
+          allCodes = codes
+          const statusByCode = new Map(codes.map((c) => [c.code, Boolean(c.used)]))
+          const union = new Set([...selectedCodesByTab.unused, ...selectedCodesByTab.used])
+          selectedCodesByTab.unused.clear()
+          selectedCodesByTab.used.clear()
+          for (const code of union) {
+            const used = statusByCode.get(code)
+            if (used === undefined) continue
+            if (used) selectedCodesByTab.used.add(code)
+            else selectedCodesByTab.unused.add(code)
+          }
+          updateCountHint()
+          renderActiveTab()
           show(msgList, '加载完成', 'success')
           setTimeout(() => {
             msgList.className = 'message'
             msgList.textContent = ''
           }, 800)
         } else {
-          renderRows([])
+          allCodes = []
+          selectedCodesByTab.unused.clear()
+          selectedCodesByTab.used.clear()
+          renderActiveTab()
           countHint.textContent = ''
           show(msgList, data.error || '加载失败', 'error')
         }
@@ -468,11 +617,93 @@
         show(msgAuth, '已清除密码', 'success')
         clear(msgCreate)
         clear(msgList)
-        renderRows([])
+        activeTab = 'unused'
+        allCodes = []
+        selectedCodesByTab.unused.clear()
+        selectedCodesByTab.used.clear()
+        renderActiveTab()
         countHint.textContent = ''
       })
 
       btnRefresh.addEventListener('click', refresh)
+
+      tabUnused.addEventListener('click', () => {
+        activeTab = 'unused'
+        renderActiveTab()
+      })
+
+      tabUsed.addEventListener('click', () => {
+        activeTab = 'used'
+        renderActiveTab()
+      })
+
+      chkAll.addEventListener('change', () => {
+        const visible = getFilteredCodes()
+        const selectedSet = getSelectedSet()
+        if (chkAll.checked) {
+          for (const item of visible) selectedSet.add(item.code)
+        } else {
+          for (const item of visible) selectedSet.delete(item.code)
+        }
+        renderActiveTab()
+      })
+
+      btnBulkCopy.addEventListener('click', async () => {
+        const selectedSet = getSelectedSet()
+        const list = getFilteredCodes()
+          .filter((c) => selectedSet.has(c.code))
+          .map((c) => c.code)
+        if (list.length === 0) {
+          show(msgList, '请先选择兑换码', 'error')
+          return
+        }
+        try {
+          await navigator.clipboard.writeText(list.join('\n'))
+          show(msgList, `已复制 ${list.length} 个兑换码（换行分隔）`, 'success')
+        } catch {
+          show(msgList, '复制失败（浏览器可能未授权）', 'error')
+        }
+      })
+
+      btnBulkDelete.addEventListener('click', async () => {
+        const selectedSet = getSelectedSet()
+        const list = getFilteredCodes()
+          .filter((c) => selectedSet.has(c.code))
+          .map((c) => c.code)
+        if (list.length === 0) {
+          show(msgList, '请先选择兑换码', 'error')
+          return
+        }
+        if (!confirm(`确定删除选中的 ${list.length} 个兑换码？此操作不可恢复。`)) return
+
+        btnBulkDelete.disabled = true
+        btnBulkDelete.className = 'btn-muted'
+        btnBulkDelete.textContent = '删除中...'
+        show(msgList, '批量删除中...', 'loading')
+
+        let okCount = 0
+        let failCount = 0
+        try {
+          for (const code of list) {
+            const { res } = await apiFetch('/api/admin/codes/' + encodeURIComponent(code), { method: 'DELETE' })
+            if (res.ok) {
+              okCount += 1
+              selectedSet.delete(code)
+            } else {
+              failCount += 1
+            }
+          }
+          await refresh()
+          if (failCount > 0) {
+            show(msgList, `批量删除完成：成功 ${okCount}，失败 ${failCount}`, 'error')
+          } else {
+            show(msgList, `批量删除完成：成功 ${okCount}`, 'success')
+          }
+        } finally {
+          btnBulkDelete.textContent = '批量删除'
+          updateBulkButtons()
+        }
+      })
 
       btnCreate.addEventListener('click', async () => {
         const count = Number(countInput.value || '1')
@@ -517,6 +748,7 @@
         const saved = getPassword()
         if (saved) passwordInput.value = saved
         setLoggedInState()
+        renderActiveTab()
         if (saved) refresh()
       })()
     </script>
