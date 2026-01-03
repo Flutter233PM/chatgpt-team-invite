@@ -316,7 +316,10 @@
             <div style="font-weight: 800">操作日志</div>
             <div class="hint">最近 100 条操作记录</div>
           </div>
-          <button class="btn-ghost" id="btnRefreshLogs" type="button">刷新日志</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-ghost" id="btnRefreshLogs" type="button">刷新日志</button>
+            <button class="btn-danger" id="btnClearLogs" type="button">清空日志</button>
+          </div>
         </div>
         <div style="overflow: auto">
           <table>
@@ -361,6 +364,7 @@
       const logsTbody = document.getElementById('logsTbody')
       const msgLogs = document.getElementById('msgLogs')
       const btnRefreshLogs = document.getElementById('btnRefreshLogs')
+      const btnClearLogs = document.getElementById('btnClearLogs')
 
       const STORAGE_KEY = 'adminPassword'
 
@@ -723,6 +727,24 @@
       }
 
       btnRefreshLogs.addEventListener('click', refreshLogs)
+
+      btnClearLogs.addEventListener('click', async () => {
+        if (!confirm('确定清空所有操作日志？此操作不可恢复。')) return
+        btnClearLogs.disabled = true
+        btnClearLogs.textContent = '清空中...'
+        try {
+          const { res, data } = await apiFetch('/api/admin/logs', { method: 'DELETE' })
+          if (res.ok && data.success) {
+            renderLogs([])
+            show(msgLogs, '日志已清空', 'success')
+          } else {
+            show(msgLogs, data.error || '清空失败', 'error')
+          }
+        } finally {
+          btnClearLogs.disabled = false
+          btnClearLogs.textContent = '清空日志'
+        }
+      })
 
       tabUnused.addEventListener('click', () => {
         activeTab = 'unused'

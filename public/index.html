@@ -159,13 +159,24 @@
         messageDiv.className = 'message ' + type
       }
 
+      let lastSubmitTime = 0
+      const DEBOUNCE_MS = 5000
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault()
+
+        const now = Date.now()
+        if (now - lastSubmitTime < DEBOUNCE_MS) {
+          const remaining = Math.ceil((DEBOUNCE_MS - (now - lastSubmitTime)) / 1000)
+          showMessage(`请等待 ${remaining} 秒后再试`, 'error')
+          return
+        }
 
         const email = emailInput.value.trim()
         const code = codeInput.value.trim()
         if (!email || !code) return
 
+        lastSubmitTime = now
         submitBtn.disabled = true
         submitBtn.textContent = '发送中...'
         showMessage('正在发送邀请...', 'loading')
@@ -191,8 +202,10 @@
         } catch (error) {
           showMessage('网络错误，请稍后重试', 'error')
         } finally {
-          submitBtn.disabled = false
-          submitBtn.textContent = '获取邀请'
+          setTimeout(() => {
+            submitBtn.disabled = false
+            submitBtn.textContent = '获取邀请'
+          }, Math.max(0, DEBOUNCE_MS - (Date.now() - lastSubmitTime)))
         }
       })
     </script>

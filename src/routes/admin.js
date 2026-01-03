@@ -269,4 +269,18 @@ app.get('/logs', async (c) => {
   return c.json({ success: true, logs })
 })
 
+app.delete('/logs', async (c) => {
+  let redis
+  try {
+    redis = getRedis()
+  } catch (err) {
+    console.error(err)
+    return c.json({ success: false, error: 'Redis 未配置' }, 500)
+  }
+
+  await redis.del('logs')
+
+  return c.json({ success: true })
+})
+
 export default app
