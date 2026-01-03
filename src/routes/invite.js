@@ -6,6 +6,26 @@ import { getRedis } from '../redis.js'
 
 const app = new Hono()
 
+function getClientIP(c) {
+  return c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    || c.req.header('x-real-ip')
+    || 'unknown'
+}
+
+async function logOperation(redis, type, data) {
+  const log = {
+    type,
+    time: new Date().toISOString(),
+    ...data,
+  }
+  try {
+    await redis.lpush('logs', JSON.stringify(log))
+    await redis.ltrim('logs', 0, 999) // 保留最近 1000 条
+  } catch (err) {
+    console.error('[log] write error:', err)
+  }
+}
+
 function isValidEmail(email) {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return re.test(email)
@@ -40,6 +60,7 @@ app.post('/invite', async (c) => {
   const body = await c.req.json().catch(() => null)
   const email = typeof body?.email === 'string' ? body.email.trim() : ''
   const code = sanitizeCode(body?.code)
+  const ip = getClientIP(c)
 
   if (!email || !isValidEmail(email)) {
     return c.json({ success: false, error: '请输入有效的邮箱地址' }, 400)
@@ -69,12 +90,14 @@ app.post('/invite', async (c) => {
 
   const locked = await redis.set(lockKey, lockValue, 'PX', 120_000, 'NX')
   if (locked !== 'OK') {
+    await logOperation(redis, 'redeem_fail', { email, code, ip, reason: '兑换码正在使用' })
     return c.json({ success: false, error: '兑换码正在使用，请稍后重试' }, 409)
   }
 
   try {
     const raw = await redis.get(codeKey)
     if (!raw) {
+      await logOperation(redis, 'redeem_fail', { email, code, ip, reason: '兑换码无效' })
       return c.json({ success: false, error: '兑换码无效' }, 400)
     }
 
@@ -86,15 +109,18 @@ app.post('/invite', async (c) => {
     }
 
     if (!record || typeof record !== 'object') {
+      await logOperation(redis, 'redeem_fail', { email, code, ip, reason: '兑换码数据损坏' })
       return c.json({ success: false, error: '兑换码数据损坏，请联系管理员' }, 500)
     }
 
     if (record.used) {
+      await logOperation(redis, 'redeem_fail', { email, code, ip, reason: '兑换码已被使用' })
       return c.json({ success: false, error: '兑换码已被使用' }, 400)
     }
 
     const result = await sendInvite(email, accountId, token)
     if (!result.success) {
+      await logOperation(redis, 'redeem_fail', { email, code, ip, reason: result.message || '邀请发送失败' })
       return c.json(
         { success: false, error: result.message || '邀请发送失败', data: result.data },
         502
@@ -110,6 +136,7 @@ app.post('/invite', async (c) => {
     }
 
     await redis.set(codeKey, JSON.stringify(updated))
+    await logOperation(redis, 'redeem_success', { email, code, ip })
 
     return c.json({
       success: true,

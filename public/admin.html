@@ -105,6 +105,10 @@
         color: #666;
         cursor: not-allowed;
       }
+      .btn-copy {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
       .message {
         margin-top: 10px;
         font-size: 13px;
@@ -305,6 +309,29 @@
         </div>
         <div id="msgList" class="message"></div>
       </div>
+
+      <div class="card">
+        <div class="topbar">
+          <div>
+            <div style="font-weight: 800">操作日志</div>
+            <div class="hint">最近 100 条操作记录</div>
+          </div>
+          <button class="btn-ghost" id="btnRefreshLogs" type="button">刷新日志</button>
+        </div>
+        <div style="overflow: auto">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>类型</th>
+                <th>详情</th>
+              </tr>
+            </thead>
+            <tbody id="logsTbody"></tbody>
+          </table>
+        </div>
+        <div id="msgLogs" class="message"></div>
+      </div>
     </div>
 
     <script>
@@ -330,6 +357,10 @@
       const chkAll = document.getElementById('chkAll')
       const btnBulkCopy = document.getElementById('btnBulkCopy')
       const btnBulkDelete = document.getElementById('btnBulkDelete')
+
+      const logsTbody = document.getElementById('logsTbody')
+      const msgLogs = document.getElementById('msgLogs')
+      const btnRefreshLogs = document.getElementById('btnRefreshLogs')
 
       const STORAGE_KEY = 'adminPassword'
 
@@ -431,7 +462,7 @@
 
       function updateBulkButtons() {
         const hasSelected = getSelectedSet().size > 0
-        setButtonEnabled(btnBulkCopy, 'btn-ghost', hasSelected)
+        setButtonEnabled(btnBulkCopy, 'btn-copy', hasSelected)
         setButtonEnabled(btnBulkDelete, 'btn-danger', hasSelected)
       }
 
@@ -504,7 +535,7 @@
           actionWrap.className = 'table-actions'
 
           const btnCopy = document.createElement('button')
-          btnCopy.className = 'btn-ghost'
+          btnCopy.className = 'btn-copy'
           btnCopy.textContent = '复制'
           btnCopy.addEventListener('click', async () => {
             try {
@@ -608,6 +639,7 @@
         setLoggedInState()
         show(msgAuth, '已保存密码（本地存储）', 'success')
         await refresh()
+        await refreshLogs()
       })
 
       btnLogout.addEventListener('click', () => {
@@ -617,15 +649,80 @@
         show(msgAuth, '已清除密码', 'success')
         clear(msgCreate)
         clear(msgList)
+        clear(msgLogs)
         activeTab = 'unused'
         allCodes = []
         selectedCodesByTab.unused.clear()
         selectedCodesByTab.used.clear()
         renderActiveTab()
+        renderLogs([])
         countHint.textContent = ''
       })
 
       btnRefresh.addEventListener('click', refresh)
+
+      function getLogTypeLabel(type) {
+        const map = {
+          redeem_success: '兑换成功',
+          redeem_fail: '兑换失败',
+          code_create: '创建兑换码',
+          code_delete: '删除兑换码',
+        }
+        return map[type] || type
+      }
+
+      function getLogTypeClass(type) {
+        if (type === 'redeem_success' || type === 'code_create') return 'tag unused'
+        if (type === 'redeem_fail' || type === 'code_delete') return 'tag used'
+        return 'tag'
+      }
+
+      function renderLogs(logs) {
+        logsTbody.innerHTML = ''
+        for (const log of logs) {
+          const tr = document.createElement('tr')
+
+          const tdTime = document.createElement('td')
+          tdTime.className = 'small'
+          tdTime.textContent = log.time || ''
+
+          const tdType = document.createElement('td')
+          const typeTag = document.createElement('span')
+          typeTag.className = getLogTypeClass(log.type)
+          typeTag.textContent = getLogTypeLabel(log.type)
+          tdType.appendChild(typeTag)
+
+          const tdDetail = document.createElement('td')
+          tdDetail.className = 'small'
+          const details = []
+          if (log.email) details.push(`邮箱: ${log.email}`)
+          if (log.code) details.push(`兑换码: ${log.code}`)
+          if (log.codes) details.push(`兑换码: ${log.codes}`)
+          if (log.count) details.push(`数量: ${log.count}`)
+          if (log.reason) details.push(`原因: ${log.reason}`)
+          if (log.ip) details.push(`IP: ${log.ip}`)
+          tdDetail.textContent = details.join(' | ')
+
+          tr.appendChild(tdTime)
+          tr.appendChild(tdType)
+          tr.appendChild(tdDetail)
+          logsTbody.appendChild(tr)
+        }
+      }
+
+      async function refreshLogs() {
+        show(msgLogs, '加载中...', 'loading')
+        const { res, data } = await apiFetch('/api/admin/logs', { method: 'GET' })
+        if (res.ok && data.success) {
+          renderLogs(data.logs || [])
+          clear(msgLogs)
+        } else {
+          renderLogs([])
+          show(msgLogs, data.error || '加载失败', 'error')
+        }
+      }
+
+      btnRefreshLogs.addEventListener('click', refreshLogs)
 
       tabUnused.addEventListener('click', () => {
         activeTab = 'unused'
@@ -749,7 +846,10 @@
         if (saved) passwordInput.value = saved
         setLoggedInState()
         renderActiveTab()
-        if (saved) refresh()
+        if (saved) {
+          refresh()
+          refreshLogs()
+        }
       })()
     </script>
   </body>

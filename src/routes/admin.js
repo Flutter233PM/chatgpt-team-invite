@@ -5,6 +5,26 @@ import { getRedis } from '../redis.js'
 
 const app = new Hono()
 
+function getClientIP(c) {
+  return c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    || c.req.header('x-real-ip')
+    || 'unknown'
+}
+
+async function logOperation(redis, type, data) {
+  const log = {
+    type,
+    time: new Date().toISOString(),
+    ...data,
+  }
+  try {
+    await redis.lpush('logs', JSON.stringify(log))
+    await redis.ltrim('logs', 0, 999)
+  } catch (err) {
+    console.error('[log] write error:', err)
+  }
+}
+
 function getAdminPasswordFromRequest(c) {
   const bearer = c.req.header('authorization')
   if (bearer && bearer.toLowerCase().startsWith('bearer ')) {
@@ -128,6 +148,7 @@ app.get('/codes', async (c) => {
 
 app.post('/codes', async (c) => {
   const body = await c.req.json().catch(() => ({}))
+  const ip = getClientIP(c)
 
   let redis
   try {
@@ -168,6 +189,10 @@ app.post('/codes', async (c) => {
       else skipped.push(code)
     }
 
+    if (created.length > 0) {
+      await logOperation(redis, 'code_create', { ip, count: created.length, codes: created.slice(0, 5).join(',') + (created.length > 5 ? '...' : '') })
+    }
+
     if (skipped.length > 0) {
       return c.json(
         { success: false, error: '部分兑换码已存在', created, skipped },
@@ -193,11 +218,14 @@ app.post('/codes', async (c) => {
     )
   }
 
+  await logOperation(redis, 'code_create', { ip, count: created.length, codes: created.slice(0, 5).join(',') + (created.length > 5 ? '...' : '') })
+
   return c.json({ success: true, codes: created })
 })
 
 app.delete('/codes/:code', async (c) => {
   const code = sanitizeCode(c.req.param('code'))
+  const ip = getClientIP(c)
   if (!code) {
     return c.json({ success: false, error: 'Invalid code' }, 400)
   }
@@ -215,7 +243,30 @@ app.delete('/codes/:code', async (c) => {
     return c.json({ success: false, error: 'Not Found' }, 404)
   }
 
+  await logOperation(redis, 'code_delete', { ip, code })
+
   return c.json({ success: true })
+})
+
+app.get('/logs', async (c) => {
+  let redis
+  try {
+    redis = getRedis()
+  } catch (err) {
+    console.error(err)
+    return c.json({ success: false, error: 'Redis 未配置' }, 500)
+  }
+
+  const raw = await redis.lrange('logs', 0, 99)
+  const logs = raw.map((item) => {
+    try {
+      return JSON.parse(item)
+    } catch {
+      return { raw: item }
+    }
+  })
+
+  return c.json({ success: true, logs })
 })
 
 export default app
