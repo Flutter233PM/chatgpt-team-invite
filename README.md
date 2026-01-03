@@ -2,7 +2,7 @@
 
 自动化 ChatGPT Team 邀请系统，支持兑换码验证和管理员界面。
 
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/CHATGPT-TEAM-INVITE?referralCode=keenturbo)
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/deploy?repo=Flutter233PM/chatgpt-team-invite)
 
 ## 功能
 
