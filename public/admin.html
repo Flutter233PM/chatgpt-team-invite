@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理员 - 兑换码</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+        color: #222;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+      .title h1 {
+        font-size: 22px;
+        color: #fff;
+        margin-bottom: 4px;
+      }
+      .title p {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.85);
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.98);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        margin-bottom: 14px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 820px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #555;
+        margin-bottom: 6px;
+      }
+      input[type='password'],
+      input[type='number'],
+      input[type='text'] {
+        width: 100%;
+        padding: 12px 12px;
+        border: 1px solid #e2e2e2;
+        border-radius: 10px;
+        font-size: 14px;
+        outline: none;
+      }
+      input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      button {
+        padding: 10px 12px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .btn-primary {
+        background: #667eea;
+        color: #fff;
+      }
+      .btn-ghost {
+        background: #f5f6ff;
+        color: #4b5bdc;
+      }
+      .btn-danger {
+        background: #ffebee;
+        color: #b71c1c;
+      }
+      .btn-muted {
+        background: #eee;
+        color: #666;
+        cursor: not-allowed;
+      }
+      .message {
+        margin-top: 10px;
+        font-size: 13px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        display: none;
+        word-break: break-word;
+      }
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+        display: block;
+      }
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        display: block;
+      }
+      .message.loading {
+        background: #e7f1ff;
+        color: #004085;
+        display: block;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 10px;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+        font-size: 13px;
+      }
+      th {
+        font-size: 12px;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .tag {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .tag.used {
+        background: #ffebee;
+        color: #b71c1c;
+      }
+      .tag.unused {
+        background: #e8f5e9;
+        color: #1b5e20;
+      }
+      .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+          monospace;
+        font-size: 13px;
+      }
+      .small {
+        font-size: 12px;
+        color: #666;
+      }
+      .table-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .topbar .hint {
+        font-size: 12px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <div class="title">
+          <h1>管理员：兑换码管理</h1>
+          <p>使用环境变量 <span class="code">ADMIN_PASSWORD</span> 进行认证</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <label for="password">管理员密码</label>
+            <input type="password" id="password" placeholder="输入 ADMIN_PASSWORD" />
+          </div>
+          <div>
+            <label for="state">状态</label>
+            <input type="text" id="state" value="未登录" disabled />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="btnSave">保存密码</button>
+          <button class="btn-ghost" id="btnLogout">清除密码</button>
+          <button class="btn-ghost" id="btnRefresh">刷新列表</button>
+        </div>
+        <div id="msgAuth" class="message"></div>
+      </div>
+
+      <div class="card">
+        <div class="topbar">
+          <div>
+            <div style="font-weight: 800">创建兑换码</div>
+            <div class="hint">支持批量生成（最多 200 个）</div>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="count">数量</label>
+            <input type="number" id="count" min="1" max="200" value="5" />
+          </div>
+          <div>
+            <label for="length">长度</label>
+            <input type="number" id="length" min="6" max="32" value="10" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="btnCreate">创建</button>
+        </div>
+        <div id="msgCreate" class="message"></div>
+      </div>
+
+      <div class="card">
+        <div class="topbar">
+          <div>
+            <div style="font-weight: 800">兑换码列表</div>
+            <div id="countHint" class="hint"></div>
+          </div>
+        </div>
+        <div style="overflow: auto">
+          <table>
+            <thead>
+              <tr>
+                <th>兑换码</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>使用信息</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div id="msgList" class="message"></div>
+      </div>
+    </div>
+
+    <script>
+      const passwordInput = document.getElementById('password')
+      const stateInput = document.getElementById('state')
+      const msgAuth = document.getElementById('msgAuth')
+      const msgCreate = document.getElementById('msgCreate')
+      const msgList = document.getElementById('msgList')
+
+      const btnSave = document.getElementById('btnSave')
+      const btnLogout = document.getElementById('btnLogout')
+      const btnRefresh = document.getElementById('btnRefresh')
+      const btnCreate = document.getElementById('btnCreate')
+
+      const countInput = document.getElementById('count')
+      const lengthInput = document.getElementById('length')
+
+      const tbody = document.getElementById('tbody')
+      const countHint = document.getElementById('countHint')
+
+      const STORAGE_KEY = 'adminPassword'
+
+      function show(el, text, type) {
+        el.textContent = text
+        el.className = 'message ' + type
+        el.style.display = ''
+      }
+
+      function clear(el) {
+        el.textContent = ''
+        el.className = 'message'
+        el.style.display = 'none'
+      }
+
+      function getPassword() {
+        return localStorage.getItem(STORAGE_KEY) || ''
+      }
+
+      function setPassword(pwd) {
+        localStorage.setItem(STORAGE_KEY, pwd)
+      }
+
+      function clearPassword() {
+        localStorage.removeItem(STORAGE_KEY)
+      }
+
+      function authHeaders() {
+        const pwd = getPassword()
+        return {
+          Authorization: 'Bearer ' + pwd,
+        }
+      }
+
+      function setLoggedInState() {
+        const pwd = getPassword()
+        if (pwd) {
+          stateInput.value = '已保存密码'
+        } else {
+          stateInput.value = '未登录'
+        }
+      }
+
+      async function apiFetch(path, options = {}) {
+        const headers = options.headers || {}
+        const merged = {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+            ...authHeaders(),
+          },
+        }
+        const res = await fetch(path, merged)
+        const data = await res.json().catch(() => ({}))
+        return { res, data }
+      }
+
+      function renderRows(codes) {
+        tbody.innerHTML = ''
+        for (const item of codes) {
+          const tr = document.createElement('tr')
+
+          const tdCode = document.createElement('td')
+          tdCode.className = 'code'
+          tdCode.textContent = item.code
+
+          const tdStatus = document.createElement('td')
+          const tag = document.createElement('span')
+          tag.className = 'tag ' + (item.used ? 'used' : 'unused')
+          tag.textContent = item.used ? '已使用' : '未使用'
+          tdStatus.appendChild(tag)
+
+          const tdCreated = document.createElement('td')
+          tdCreated.innerHTML = `<div>${escapeHtml(item.createdAt || '')}</div>`
+
+          const tdUsed = document.createElement('td')
+          if (item.used) {
+            tdUsed.innerHTML =
+              `<div class="small">usedAt: ${escapeHtml(item.usedAt || '')}</div>` +
+              `<div class="small">usedBy: ${escapeHtml(item.usedBy || '')}</div>`
+          } else {
+            tdUsed.innerHTML = `<div class="small">-</div>`
+          }
+
+          const tdActions = document.createElement('td')
+          const actionWrap = document.createElement('div')
+          actionWrap.className = 'table-actions'
+
+          const btnCopy = document.createElement('button')
+          btnCopy.className = 'btn-ghost'
+          btnCopy.textContent = '复制'
+          btnCopy.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(item.code)
+              show(msgList, '已复制：' + item.code, 'success')
+            } catch {
+              show(msgList, '复制失败（浏览器可能未授权）', 'error')
+            }
+          })
+
+          const btnDel = document.createElement('button')
+          btnDel.className = 'btn-danger'
+          btnDel.textContent = '删除'
+          btnDel.addEventListener('click', async () => {
+            if (!confirm('确定删除兑换码 ' + item.code + ' ?')) return
+            btnDel.disabled = true
+            btnDel.className = 'btn-muted'
+            btnDel.textContent = '删除中...'
+            try {
+              const { res, data } = await apiFetch('/api/admin/codes/' + encodeURIComponent(item.code), {
+                method: 'DELETE',
+              })
+              if (res.ok) {
+                await refresh()
+                show(msgList, '已删除：' + item.code, 'success')
+              } else {
+                show(msgList, data.error || '删除失败', 'error')
+              }
+            } finally {
+              btnDel.disabled = false
+              btnDel.className = 'btn-danger'
+              btnDel.textContent = '删除'
+            }
+          })
+
+          actionWrap.appendChild(btnCopy)
+          actionWrap.appendChild(btnDel)
+          tdActions.appendChild(actionWrap)
+
+          tr.appendChild(tdCode)
+          tr.appendChild(tdStatus)
+          tr.appendChild(tdCreated)
+          tr.appendChild(tdUsed)
+          tr.appendChild(tdActions)
+
+          tbody.appendChild(tr)
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;')
+      }
+
+      async function refresh() {
+        show(msgList, '加载中...', 'loading')
+        const { res, data } = await apiFetch('/api/admin/codes', { method: 'GET' })
+        if (res.ok && data.success) {
+          const codes = data.codes || []
+          renderRows(codes)
+          countHint.textContent = `共 ${codes.length} 个`
+          show(msgList, '加载完成', 'success')
+          setTimeout(() => {
+            msgList.className = 'message'
+            msgList.textContent = ''
+          }, 800)
+        } else {
+          renderRows([])
+          countHint.textContent = ''
+          show(msgList, data.error || '加载失败', 'error')
+        }
+      }
+
+      btnSave.addEventListener('click', async () => {
+        const pwd = passwordInput.value.trim()
+        if (!pwd) {
+          show(msgAuth, '请输入密码', 'error')
+          return
+        }
+        setPassword(pwd)
+        setLoggedInState()
+        show(msgAuth, '已保存密码（本地存储）', 'success')
+        await refresh()
+      })
+
+      btnLogout.addEventListener('click', () => {
+        clearPassword()
+        passwordInput.value = ''
+        setLoggedInState()
+        show(msgAuth, '已清除密码', 'success')
+      })
+
+      btnRefresh.addEventListener('click', refresh)
+
+      btnCreate.addEventListener('click', async () => {
+        const count = Number(countInput.value || '1')
+        const length = Number(lengthInput.value || '10')
+        if (!Number.isFinite(count) || count < 1 || count > 200) {
+          show(msgCreate, '数量范围：1-200', 'error')
+          return
+        }
+        if (!Number.isFinite(length) || length < 6 || length > 32) {
+          show(msgCreate, '长度范围：6-32', 'error')
+          return
+        }
+
+        btnCreate.disabled = true
+        btnCreate.className = 'btn-muted'
+        btnCreate.textContent = '创建中...'
+        show(msgCreate, '请求中...', 'loading')
+
+        try {
+          const { res, data } = await apiFetch('/api/admin/codes', {
+            method: 'POST',
+            body: JSON.stringify({ count, length }),
+          })
+
+          if (res.ok && data.success) {
+            show(msgCreate, '创建成功：' + (data.codes || []).join(', '), 'success')
+            await refresh()
+          } else {
+            show(msgCreate, data.error || '创建失败', 'error')
+          }
+        } catch (e) {
+          show(msgCreate, '网络错误', 'error')
+        } finally {
+          btnCreate.disabled = false
+          btnCreate.className = 'btn-primary'
+          btnCreate.textContent = '创建'
+        }
+      })
+
+      // Init
+      ;(() => {
+        const saved = getPassword()
+        if (saved) passwordInput.value = saved
+        setLoggedInState()
+        if (saved) refresh()
+      })()
+    </script>
+  </body>
+</html>

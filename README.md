@@ -1,16 +1,33 @@
 # ChatGPT Team Invite
 
-自动化 ChatGPT Team 邀请系统，部署在 Cloudflare Workers 上。
+自动化 ChatGPT Team 邀请系统，支持兑换码验证和管理员界面。
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/CHATGPT-TEAM-INVITE?referralCode=keenturbo)
 
 ## 功能
 
-- 用户提交邮箱地址
-- 自动调用 ChatGPT API 发送 Team 邀请
-- 用户收到 OpenAI 官方邀请邮件
+- 用户提交邮箱地址 + 兑换码
+- 兑换码一次性使用，防止滥用
+- 管理员界面：创建/删除/查看兑换码
+- 基于 Redis 存储，高性能
 
-## 部署步骤
+## 一键部署
 
-### 1. 获取认证信息
+点击上方按钮一键部署到 Zeabur，部署时需要：
+
+1. 添加 Redis 服务（Zeabur Marketplace 中选择）
+2. 配置以下环境变量
+
+## 环境变量
+
+| 变量名 | 必填 | 说明 |
+|--------|------|------|
+| `REDIS_URL` | 是 | Redis 连接字符串（添加 Redis 服务后自动注入） |
+| `ADMIN_PASSWORD` | 是 | 管理员密码 |
+| `CHATGPT_ACCOUNT_ID` | 是 | ChatGPT Team 账户 ID |
+| `CHATGPT_TOKEN` | 是 | ChatGPT 认证 Token |
+
+### 获取 ChatGPT 认证信息
 
 登录 ChatGPT Team 管理后台：
 
@@ -22,45 +39,15 @@ https://chatgpt.com/admin/members
 
 | 名称 | Header 字段 |
 |------|-------------|
-| ACCOUNT_ID | `chatgpt-account-id` |
-| TOKEN | `authorization` 中 `Bearer ` 后面的部分 |
+| CHATGPT_ACCOUNT_ID | `chatgpt-account-id` |
+| CHATGPT_TOKEN | `authorization` 中 `Bearer ` 后面的部分 |
 
-### 2. 部署到 Cloudflare Workers
+## 页面说明
 
-#### 方式一：Wrangler CLI
-
-```bash
-npm install -g wrangler
-```
-
-```bash
-wrangler login
-```
-
-```bash
-wrangler deploy
-```
-
-#### 方式二：Cloudflare Dashboard
-
-1. 进入 [Cloudflare Workers](https://dash.cloudflare.com/?to=/:account/workers)
-2. 创建新 Worker
-3. 复制 `worker.js` 内容粘贴
-4. 保存并部署
-
-### 3. 配置环境变量
-
-在 Cloudflare Workers 设置中添加环境变量：
-
-| 变量名 | 说明 |
-|--------|------|
-| `ACCOUNT_ID` | ChatGPT Team 账户 ID |
-| `TOKEN` | ChatGPT 认证 Token |
-| `WORKSPACE_NAME` | Team 名称（可选，用于前端显示） |
-
-### 4. 绑定自定义域名（可选）
-
-在 Workers 设置中添加自定义域名。
+| 路径 | 说明 |
+|------|------|
+| `/` | 用户邀请页面（需输入邮箱和兑换码） |
+| `/admin` | 管理员界面（需输入管理员密码） |
 
 ## API 说明
 
@@ -71,45 +58,55 @@ POST /api/invite
 Content-Type: application/json
 
 {
-  "email": "user@example.com"
+  "email": "user@example.com",
+  "code": "ABCD1234"
 }
 ```
 
-### 响应
+### 管理员 API
 
-成功：
+所有管理员 API 需要在 Header 中携带认证信息：
+
+```
+Authorization: Bearer <ADMIN_PASSWORD>
+```
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/admin/codes` | 列出所有兑换码 |
+| POST | `/api/admin/codes` | 创建兑换码 |
+| DELETE | `/api/admin/codes/:code` | 删除兑换码 |
+
+**创建兑换码请求体：**
+
 ```json
 {
-  "success": true,
-  "message": "邀请已发送，请查收邮件"
+  "count": 5,
+  "length": 10
 }
 ```
 
-失败：
-```json
-{
-  "success": false,
-  "error": "错误信息"
-}
-```
+## 本地开发
 
-## 工作原理
+```bash
+# 安装依赖
+npm install
 
-```
-用户输入邮箱 → Cloudflare Worker → ChatGPT API → OpenAI 发送邀请邮件 → 用户点击链接加入 Team
-```
+# 启动开发服务器
+npm run dev
 
-邀请链接由 OpenAI 官方生成并通过邮件发送，格式如：
-
-```
-https://chatgpt.com/auth/login?inv_ws_name=XXX&inv_email=xxx&wId=xxx&accept_wId=xxx
+# 需要设置环境变量
+export REDIS_URL="redis://localhost:6379"
+export ADMIN_PASSWORD="your-password"
+export CHATGPT_ACCOUNT_ID="your-account-id"
+export CHATGPT_TOKEN="your-token"
 ```
 
 ## 注意事项
 
 - Token 有效期有限，失效后需要重新获取
-- 每个 Team 最多邀请 5 人（标准版）
-- 建议添加频率限制防止滥用
+- 兑换码为一次性使用，使用后自动标记
+- 管理员密码请设置强密码
 
 ## License
 
